@@ -7,6 +7,12 @@ impl Supervillain {
     pub fn full_name(&self) -> String {
         format!("{} {}", self.first_name, self.last_name)
     }
+
+    pub fn set_full_name(&mut self, name: &str) {
+        let components = name.split(" ").collect::<Vec<_>>();
+        self.first_name = components[0].to_string();
+        self.last_name = components[1].to_string();
+    }
 }
 
 #[cfg(test)]
@@ -24,5 +30,19 @@ mod tests {
         let full_name = sut.full_name();
         // Assert
         assert_eq!(full_name, "Lex Luthor", "Unexpected full name");
+    }
+
+    #[test]
+    fn set_full_name_sets_first_and_last_names() {
+        // Arrange
+        let mut sut = Supervillain {
+            first_name: "Lex".to_string(),
+            last_name: "Luthor".to_string(),
+        };
+        // Act
+        sut.set_full_name("Darth Vader");
+        // Assert
+        assert_eq!(sut.first_name, "Darth");
+        assert_eq!(sut.last_name, "Vader");
     }
 }
