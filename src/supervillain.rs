@@ -18,7 +18,7 @@ impl Supervillain {
         self.last_name = components[1].to_string();
     }
 
-    pub fn attack(&self, weapon: impl Megaweapon) {
+    pub fn attack(&self, weapon: &impl Megaweapon) {
         weapon.shoot();
     }
 }
@@ -84,7 +84,9 @@ mod tests {
         };
         let weapon = WeaponDouble::new();
         // Act
-        sut.attack(weapon);
+        sut.attack(&weapon);
+        // Assert
+        assert!(*weapon.is_shot.borrow());
     }
 
     struct WeaponDouble {
@@ -100,13 +102,6 @@ mod tests {
     impl Megaweapon for WeaponDouble {
         fn shoot(&self) {
             *self.is_shot.borrow_mut() = true;
-        }
-    }
-    impl Drop for WeaponDouble {
-        fn drop(&mut self) {
-            if *self.is_shot.borrow() != true {
-                panic!("Failed to call shoot()");
-            }
         }
     }
 }
