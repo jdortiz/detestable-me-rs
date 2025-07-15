@@ -35,7 +35,8 @@ impl From<&str> for Supervillain {
 
 #[cfg(test)]
 mod tests {
-    use std::{cell::RefCell, panic};
+    use std::cell::RefCell;
+    use test_context::{TestContext, test_context};
 
     use super::*;
 
@@ -46,23 +47,21 @@ mod tests {
     const SECONDARY_LAST_NAME: &str = "Vader";
     const SECONDARY_FULL_NAME: &str = "Darth Vader";
 
+    #[test_context(Context)]
     #[test]
-    fn full_name_is_first_name_space_last_name() {
-        run_test(|ctx| {
-            let full_name = ctx.sut.full_name();
+    fn full_name_is_first_name_space_last_name(ctx: &mut Context) {
+        let full_name = ctx.sut.full_name();
 
-            assert_eq!(full_name, PRIMARY_FULL_NAME, "Unexpected full name");
-        });
+        assert_eq!(full_name, PRIMARY_FULL_NAME, "Unexpected full name");
     }
 
+    #[test_context(Context)]
     #[test]
-    fn set_full_name_sets_first_and_last_names() {
-        run_test(|ctx| {
-            ctx.sut.set_full_name(SECONDARY_FULL_NAME);
+    fn set_full_name_sets_first_and_last_names(ctx: &mut Context) {
+        ctx.sut.set_full_name(SECONDARY_FULL_NAME);
 
-            assert_eq!(ctx.sut.first_name, SECONDARY_FIRST_NAME);
-            assert_eq!(ctx.sut.last_name, SECONDARY_LAST_NAME);
-        })
+        assert_eq!(ctx.sut.first_name, SECONDARY_FIRST_NAME);
+        assert_eq!(ctx.sut.last_name, SECONDARY_LAST_NAME);
     }
 
     #[test]
@@ -73,15 +72,14 @@ mod tests {
         assert_eq!(sut.last_name, SECONDARY_LAST_NAME);
     }
 
+    #[test_context(Context)]
     #[test]
-    fn attack_shoots_weapon() {
-        run_test(|ctx| {
-            let weapon = WeaponDouble::new();
+    fn attack_shoots_weapon(ctx: &mut Context) {
+        let weapon = WeaponDouble::new();
 
-            ctx.sut.attack(&weapon);
+        ctx.sut.attack(&weapon);
 
-            assert!(*weapon.is_shot.borrow());
-        })
+        assert!(*weapon.is_shot.borrow());
     }
 
     struct WeaponDouble {
@@ -104,7 +102,7 @@ mod tests {
         sut: Supervillain,
     }
 
-    impl Context {
+    impl TestContext for Context {
         fn setup() -> Context {
             Context {
                 sut: Supervillain {
@@ -115,19 +113,5 @@ mod tests {
         }
 
         fn teardown(self) {}
-    }
-
-    fn run_test<T>(tst: T)
-    where
-        T: FnOnce(&mut Context) -> () + panic::UnwindSafe,
-    {
-        let mut ctx = Context::setup();
-        let mut wrapper = panic::AssertUnwindSafe(&mut ctx);
-        let result = panic::catch_unwind(move || tst(*wrapper));
-
-        ctx.teardown();
-        if let Err(err) = result {
-            std::panic::resume_unwind(err);
-        }
     }
 }
