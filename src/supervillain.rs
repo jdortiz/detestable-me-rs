@@ -38,38 +38,37 @@ mod tests {
     use std::cell::RefCell;
     use test_context::{TestContext, test_context};
 
-    use super::*;
+    use crate::test_common;
 
-    const PRIMARY_FIRST_NAME: &str = "Lex";
-    const PRIMARY_LAST_NAME: &str = "Luthor";
-    const PRIMARY_FULL_NAME: &str = "Lex Luthor";
-    const SECONDARY_FIRST_NAME: &str = "Darth";
-    const SECONDARY_LAST_NAME: &str = "Vader";
-    const SECONDARY_FULL_NAME: &str = "Darth Vader";
+    use super::*;
 
     #[test_context(Context)]
     #[test]
     fn full_name_is_first_name_space_last_name(ctx: &mut Context) {
         let full_name = ctx.sut.full_name();
 
-        assert_eq!(full_name, PRIMARY_FULL_NAME, "Unexpected full name");
+        assert_eq!(
+            full_name,
+            test_common::PRIMARY_FULL_NAME,
+            "Unexpected full name"
+        );
     }
 
     #[test_context(Context)]
     #[test]
     fn set_full_name_sets_first_and_last_names(ctx: &mut Context) {
-        ctx.sut.set_full_name(SECONDARY_FULL_NAME);
+        ctx.sut.set_full_name(test_common::SECONDARY_FULL_NAME);
 
-        assert_eq!(ctx.sut.first_name, SECONDARY_FIRST_NAME);
-        assert_eq!(ctx.sut.last_name, SECONDARY_LAST_NAME);
+        assert_eq!(ctx.sut.first_name, test_common::SECONDARY_FIRST_NAME);
+        assert_eq!(ctx.sut.last_name, test_common::SECONDARY_LAST_NAME);
     }
 
     #[test]
     fn from_str_slice_produces_supervillain_full_with_first_and_last_name() {
-        let sut = Supervillain::from(SECONDARY_FULL_NAME);
+        let sut = Supervillain::from(test_common::SECONDARY_FULL_NAME);
 
-        assert_eq!(sut.first_name, SECONDARY_FIRST_NAME);
-        assert_eq!(sut.last_name, SECONDARY_LAST_NAME);
+        assert_eq!(sut.first_name, test_common::SECONDARY_FIRST_NAME);
+        assert_eq!(sut.last_name, test_common::SECONDARY_LAST_NAME);
     }
 
     #[test_context(Context)]
@@ -106,8 +105,8 @@ mod tests {
         fn setup() -> Context {
             Context {
                 sut: Supervillain {
-                    first_name: PRIMARY_FIRST_NAME.to_string(),
-                    last_name: PRIMARY_LAST_NAME.to_string(),
+                    first_name: test_common::PRIMARY_FIRST_NAME.to_string(),
+                    last_name: test_common::PRIMARY_LAST_NAME.to_string(),
                 },
             }
         }
