@@ -68,7 +68,7 @@ mod tests {
 
     #[test_context(Context)]
     #[test]
-    #[should_panic]
+    #[should_panic(expected = "Name must have first and last name")]
     fn set_full_name_panics_with_empty_name(ctx: &mut Context) {
         ctx.sut.set_full_name("");
     }
