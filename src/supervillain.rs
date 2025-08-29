@@ -93,10 +93,8 @@ mod tests {
 
     #[test]
     fn try_from_str_slice_produces_supervillain_full_with_first_and_last_name() {
-        let result = Supervillain::try_from(test_common::SECONDARY_FULL_NAME);
-        let Ok(sut) = result else {
-            panic!("Unexpected error returned by try_from");
-        };
+        let sut = Supervillain::try_from(test_common::SECONDARY_FULL_NAME)
+            .expect("Unexpected error returned by try_from");
         assert_eq!(sut.first_name, test_common::SECONDARY_FIRST_NAME);
         assert_eq!(sut.last_name, test_common::SECONDARY_LAST_NAME);
     }
