@@ -1,3 +1,6 @@
+#![allow(unused)]
+use thiserror::Error;
+
 pub struct Supervillain {
     pub first_name: String,
     pub last_name: String,
@@ -14,6 +17,9 @@ impl Supervillain {
 
     pub fn set_full_name(&mut self, name: &str) {
         let components = name.split(" ").collect::<Vec<_>>();
+        if components.len() != 2 {
+            panic!("Name must have first and last name");
+        }
         self.first_name = components[0].to_string();
         self.last_name = components[1].to_string();
     }
@@ -23,14 +29,29 @@ impl Supervillain {
     }
 }
 
-impl From<&str> for Supervillain {
-    fn from(name: &str) -> Self {
+impl TryFrom<&str> for Supervillain {
+    type Error = EvilError;
+
+    fn try_from(name: &str) -> Result<Self, Self::Error> {
         let components = name.split(" ").collect::<Vec<_>>();
-        Supervillain {
-            first_name: components[0].to_string(),
-            last_name: components[1].to_string(),
+        if components.len() < 2 {
+            Err(EvilError::ParseError {
+                purpose: "full_name".to_string(),
+                reason: "Too few arguments".to_string(),
+            })
+        } else {
+            Ok(Supervillain {
+                first_name: components[0].to_string(),
+                last_name: components[1].to_string(),
+            })
         }
     }
+}
+
+#[derive(Error, Debug)]
+pub enum EvilError {
+    #[error("Parse error: purpose='{}', reason='{}'", .purpose, .reason)]
+    ParseError { purpose: String, reason: String },
 }
 
 #[cfg(test)]
@@ -63,12 +84,31 @@ mod tests {
         assert_eq!(ctx.sut.last_name, test_common::SECONDARY_LAST_NAME);
     }
 
+    #[test_context(Context)]
     #[test]
-    fn from_str_slice_produces_supervillain_full_with_first_and_last_name() {
-        let sut = Supervillain::from(test_common::SECONDARY_FULL_NAME);
+    #[should_panic(expected = "Name must have first and last name")]
+    fn set_full_name_panics_with_empty_name(ctx: &mut Context) {
+        ctx.sut.set_full_name("");
+    }
 
+    #[test]
+    fn try_from_str_slice_produces_supervillain_full_with_first_and_last_name()
+    -> Result<(), EvilError> {
+        let sut = Supervillain::try_from(test_common::SECONDARY_FULL_NAME)?;
         assert_eq!(sut.first_name, test_common::SECONDARY_FIRST_NAME);
         assert_eq!(sut.last_name, test_common::SECONDARY_LAST_NAME);
+        Ok(())
+    }
+
+    #[test]
+    fn try_from_str_slice_produces_error_with_less_than_two_substrings() {
+        let result = Supervillain::try_from("");
+        let Err(error) = result else {
+            panic!("Unexpected value returned by try_from");
+        };
+        assert!(
+            matches!(error, EvilError::ParseError { purpose, reason } if purpose =="full_name" && reason == "Too few arguments")
+        )
     }
 
     #[test_context(Context)]
