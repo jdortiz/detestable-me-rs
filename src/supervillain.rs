@@ -1,4 +1,6 @@
 #![allow(unused)]
+use std::time::Duration;
+
 use thiserror::Error;
 
 pub struct Supervillain {
@@ -26,6 +28,11 @@ impl Supervillain {
 
     pub fn attack(&self, weapon: &impl Megaweapon) {
         weapon.shoot();
+    }
+
+    pub async fn come_up_with_plan(&self) -> String {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+        String::from("Take over the world!")
     }
 }
 
@@ -57,7 +64,7 @@ pub enum EvilError {
 #[cfg(test)]
 mod tests {
     use std::cell::RefCell;
-    use test_context::{TestContext, test_context};
+    use test_context::{AsyncTestContext, TestContext, test_context};
 
     use crate::test_common;
 
@@ -121,6 +128,12 @@ mod tests {
         assert!(*weapon.is_shot.borrow());
     }
 
+    #[test_context(Context)]
+    #[tokio::test]
+    async fn plan_is_sadly_expected(ctx: &mut Context) {
+        assert_eq!(ctx.sut.come_up_with_plan().await, "Take over the world!");
+    }
+
     struct WeaponDouble {
         pub is_shot: RefCell<bool>,
     }
@@ -141,8 +154,8 @@ mod tests {
         sut: Supervillain,
     }
 
-    impl TestContext for Context {
-        fn setup() -> Context {
+    impl AsyncTestContext for Context {
+        async fn setup() -> Context {
             Context {
                 sut: Supervillain {
                     first_name: test_common::PRIMARY_FIRST_NAME.to_string(),
@@ -151,6 +164,6 @@ mod tests {
             }
         }
 
-        fn teardown(self) {}
+        async fn teardown(self) {}
     }
 }
