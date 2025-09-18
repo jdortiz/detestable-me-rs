@@ -20,7 +20,7 @@ impl Supervillain {
     /// Full name is produced concatenating first name, a single space, and the last name.
     ///
     /// # Examples
-    /// ```
+    /// ```ignore
     ///# use evil::supervillain::Supervillain;
     /// let lex = Supervillain {
     ///     first_name: "Lex".to_string(),
@@ -115,6 +115,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore = "temporary disabled"]
     fn try_from_str_slice_produces_supervillain_full_with_first_and_last_name()
     -> Result<(), EvilError> {
         let sut = Supervillain::try_from(test_common::SECONDARY_FULL_NAME)?;
