@@ -3,6 +3,15 @@ name = "detestable-me"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "detestable-me"
+path = "src/main.rs"
+test = false
+
+[lib]
+name = "evil"
+path = "src/lib.rs"
+
 [dependencies]
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["macros", "time", "rt"] }
