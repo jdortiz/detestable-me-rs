@@ -56,7 +56,7 @@ impl TryFrom<&str> for Supervillain {
     type Error = EvilError;
 
     fn try_from(name: &str) -> Result<Self, Self::Error> {
-        let components = name.split(" ").collect::<Vec<_>>();
+        let components = name.split("  ").collect::<Vec<_>>();
         if components.len() < 2 {
             Err(EvilError::ParseError {
                 purpose: "full_name".to_string(),
