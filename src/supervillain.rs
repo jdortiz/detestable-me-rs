@@ -4,17 +4,21 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+use crate::sidekick::Sidekick;
+
 /// Type that represents supervillains.
-pub struct Supervillain {
+#[derive(Default)]
+pub struct Supervillain<'a> {
     pub first_name: String,
     pub last_name: String,
+    pub sidekick: Option<Sidekick<'a>>,
 }
 
 pub trait Megaweapon {
     fn shoot(&self);
 }
 
-impl Supervillain {
+impl Supervillain<'_> {
     /// Return the value of the full name as a single string.
     ///
     /// Full name is produced concatenating first name, a single space, and the last name.
@@ -52,7 +56,7 @@ impl Supervillain {
     }
 }
 
-impl TryFrom<&str> for Supervillain {
+impl TryFrom<&str> for Supervillain<'_> {
     type Error = EvilError;
 
     fn try_from(name: &str) -> Result<Self, Self::Error> {
@@ -66,6 +70,7 @@ impl TryFrom<&str> for Supervillain {
             Ok(Supervillain {
                 first_name: components[0].to_string(),
                 last_name: components[1].to_string(),
+                sidekick: None,
             })
         }
     }
@@ -146,7 +151,7 @@ mod tests {
 
     #[test_context(Context)]
     #[tokio::test]
-    async fn plan_is_sadly_expected(ctx: &mut Context) {
+    async fn plan_is_sadly_expected(ctx: &mut Context<'_>) {
         assert_eq!(ctx.sut.come_up_with_plan().await, "Take over the world!");
     }
 
@@ -166,16 +171,17 @@ mod tests {
         }
     }
 
-    struct Context {
-        sut: Supervillain,
+    struct Context<'a> {
+        sut: Supervillain<'a>,
     }
 
-    impl AsyncTestContext for Context {
-        async fn setup() -> Context {
+    impl<'a> AsyncTestContext for Context<'a> {
+        async fn setup() -> Context<'a> {
             Context {
                 sut: Supervillain {
                     first_name: test_common::PRIMARY_FIRST_NAME.to_string(),
                     last_name: test_common::PRIMARY_LAST_NAME.to_string(),
+                    ..Default::default()
                 },
             }
         }

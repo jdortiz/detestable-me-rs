@@ -1,0 +1,17 @@
+//! Module for sideckicks and all the related functionality
+#![allow(dead_code)]
+
+use crate::Gadget;
+
+/// Type that represents a sidekick.
+pub struct Sidekick<'a> {
+    gadget: Box<dyn Gadget + 'a>,
+}
+
+impl<'a> Sidekick<'a> {
+    fn new<G: Gadget + 'a>(gadget: G) -> Sidekick<'a> {
+        Sidekick {
+            gadget: Box::new(gadget),
+        }
+    }
+}
