@@ -4,7 +4,10 @@ use std::time::Duration;
 
 use thiserror::Error;
 
+#[cfg(not(test))]
 use crate::sidekick::Sidekick;
+#[cfg(test)]
+use tests::doubles::Sidekick;
 
 /// Type that represents supervillains.
 #[derive(Default)]
@@ -53,6 +56,14 @@ impl Supervillain<'_> {
     pub async fn come_up_with_plan(&self) -> String {
         tokio::time::sleep(Duration::from_millis(100)).await;
         String::from("Take over the world!")
+    }
+
+    pub fn conspire(&mut self) {
+        if let Some(ref sidekick) = self.sidekick {
+            if !sidekick.agree() {
+                self.sidekick = None;
+            }
+        }
     }
 }
 
@@ -153,6 +164,61 @@ mod tests {
     #[tokio::test]
     async fn plan_is_sadly_expected(ctx: &mut Context<'_>) {
         assert_eq!(ctx.sut.come_up_with_plan().await, "Take over the world!");
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn keep_sidekick_if_agrees_with_conspiracy(ctx: &mut Context) {
+        let mut sk_double = doubles::Sidekick::new();
+        sk_double.agree_answer = true;
+        ctx.sut.sidekick = Some(sk_double);
+
+        ctx.sut.conspire();
+
+        assert!(ctx.sut.sidekick.is_some(), "Sidekick fired unexpectedly");
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn fire_sidekick_if_doesnt_agree_with_conspiracy(ctx: &mut Context) {
+        let mut sk_double = doubles::Sidekick::new();
+        sk_double.agree_answer = false;
+        ctx.sut.sidekick = Some(sk_double);
+        ctx.sut.conspire();
+        assert!(
+            ctx.sut.sidekick.is_none(),
+            "Sidekick not fired unexpectedly"
+        );
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn conspiracy_without_sidekick_doesnt_fail(ctx: &mut Context) {
+        ctx.sut.conspire();
+
+        assert!(ctx.sut.sidekick.is_none(), "Unexpected sidekick");
+    }
+
+    pub(crate) mod doubles {
+        use std::marker::PhantomData;
+
+        pub struct Sidekick<'a> {
+            phantom: PhantomData<&'a ()>,
+            pub agree_answer: bool,
+        }
+
+        impl<'a> Sidekick<'a> {
+            pub fn new() -> Sidekick<'a> {
+                Sidekick {
+                    phantom: PhantomData,
+                    agree_answer: false,
+                }
+            }
+
+            pub fn agree(&self) -> bool {
+                self.agree_answer
+            }
+        }
     }
 
     struct WeaponDouble {

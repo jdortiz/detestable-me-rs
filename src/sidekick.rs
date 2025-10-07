@@ -14,4 +14,8 @@ impl<'a> Sidekick<'a> {
             gadget: Box::new(gadget),
         }
     }
+
+    pub fn agree(&self) -> bool {
+        true
+    }
 }
