@@ -18,4 +18,8 @@ impl<'a> Sidekick<'a> {
     pub fn agree(&self) -> bool {
         true
     }
+
+    pub fn get_weak_targets<G: Gadget>(&self, _gadget: &G) -> Vec<String> {
+        vec![]
+    }
 }

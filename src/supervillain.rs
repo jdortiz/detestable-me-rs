@@ -6,6 +6,7 @@ use thiserror::Error;
 
 #[cfg(not(test))]
 use crate::sidekick::Sidekick;
+use crate::{Gadget, Henchman};
 #[cfg(test)]
 use tests::doubles::Sidekick;
 
@@ -62,6 +63,19 @@ impl Supervillain<'_> {
         if let Some(ref sidekick) = self.sidekick {
             if !sidekick.agree() {
                 self.sidekick = None;
+            }
+        }
+    }
+
+    pub fn start_world_domination_stage1<H: Henchman, G: Gadget>(
+        &self,
+        henchman: &mut H,
+        gadget: &G,
+    ) {
+        if let Some(ref sidekick) = self.sidekick {
+            let targets = sidekick.get_weak_targets(gadget);
+            if !targets.is_empty() {
+                henchman.build_secret_hq(targets[0].clone());
             }
         }
     }
@@ -199,12 +213,32 @@ mod tests {
         assert!(ctx.sut.sidekick.is_none(), "Unexpected sidekick");
     }
 
+    #[test_context(Context)]
+    #[test]
+    fn world_domination_stage1_builds_hq_in_first_weak_target(ctx: &mut Context) {
+        let gdummy = GadgetDummy {};
+        let mut hm_spy = HenchmanSpy { hq_location: None };
+        let mut sk_double = doubles::Sidekick::new();
+        sk_double.targets = test_common::TARGETS.map(String::from).to_vec();
+        ctx.sut.sidekick = Some(sk_double);
+
+        ctx.sut.start_world_domination_stage1(&mut hm_spy, &gdummy);
+
+        assert_eq!(
+            hm_spy.hq_location,
+            Some(test_common::FIRST_TARGET.to_string())
+        );
+    }
+
     pub(crate) mod doubles {
         use std::marker::PhantomData;
+
+        use crate::Gadget;
 
         pub struct Sidekick<'a> {
             phantom: PhantomData<&'a ()>,
             pub agree_answer: bool,
+            pub targets: Vec<String>,
         }
 
         impl<'a> Sidekick<'a> {
@@ -212,12 +246,33 @@ mod tests {
                 Sidekick {
                     phantom: PhantomData,
                     agree_answer: false,
+                    targets: vec![],
                 }
             }
 
             pub fn agree(&self) -> bool {
                 self.agree_answer
             }
+
+            pub fn get_weak_targets<G: Gadget>(&self, _gadget: &G) -> Vec<String> {
+                self.targets.clone()
+            }
+        }
+    }
+
+    struct GadgetDummy;
+
+    impl Gadget for GadgetDummy {
+        fn do_stuff(&self) {}
+    }
+
+    struct HenchmanSpy {
+        hq_location: Option<String>,
+    }
+
+    impl Henchman for HenchmanSpy {
+        fn build_secret_hq(&mut self, location: String) {
+            self.hq_location = Some(location);
         }
     }
 
