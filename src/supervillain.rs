@@ -2,6 +2,7 @@
 #![allow(unused)]
 use std::time::Duration;
 
+use rand::Rng;
 use thiserror::Error;
 
 #[cfg(not(test))]
@@ -50,8 +51,15 @@ impl Supervillain<'_> {
         self.last_name = components[1].to_string();
     }
 
-    pub fn attack(&self, weapon: &impl Megaweapon) {
+    pub fn attack(&self, weapon: &impl Megaweapon, intense: bool) {
         weapon.shoot();
+        if intense {
+            let mut rng = rand::rng();
+            let times = rng.random_range(1..3);
+            for _ in 0..times {
+                weapon.shoot();
+            }
+        }
     }
 
     pub async fn come_up_with_plan(&self) -> String {
@@ -81,8 +89,8 @@ impl Supervillain<'_> {
     }
 
     pub fn start_world_domination_stage2<H: Henchman>(&self, henchman: H) {
-        henchman.do_hard_things();
         henchman.fight_enemies();
+        henchman.do_hard_things();
     }
 }
 
@@ -171,12 +179,22 @@ mod tests {
 
     #[test_context(Context)]
     #[test]
-    fn attack_shoots_weapon(ctx: &mut Context) {
+    fn non_intensive_attack_shoots_weapon_once(ctx: &mut Context) {
         let weapon = WeaponDouble::new();
 
-        ctx.sut.attack(&weapon);
+        ctx.sut.attack(&weapon, false);
 
-        assert!(weapon.is_shot.get());
+        weapon.verify(once());
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn intensive_attack_shoots_weapon_twice_or_more(ctx: &mut Context) {
+        let weapon = WeaponDouble::new();
+
+        ctx.sut.attack(&weapon, true);
+
+        weapon.verify(at_least(2));
     }
 
     #[test_context(Context)]
@@ -285,14 +303,15 @@ mod tests {
     #[derive(Default)]
     struct HenchmanDouble {
         hq_location: Option<String>,
-        done_hard_things: Cell<bool>,
-        fought_enemies: Cell<bool>,
+        current_invocation: Cell<u32>,
+        done_hard_things: Cell<u32>,
+        fought_enemies: Cell<u32>,
         assertions: Vec<Box<dyn Fn(&HenchmanDouble) -> () + Send>>,
     }
 
     impl HenchmanDouble {
         fn verify_two_things_done(&self) {
-            assert!(self.done_hard_things.get() && self.fought_enemies.get());
+            assert!(self.done_hard_things.get() == 2 && self.fought_enemies.get() == 1);
         }
     }
 
@@ -302,11 +321,15 @@ mod tests {
         }
 
         fn do_hard_things(&self) {
-            self.done_hard_things.set(true);
+            self.current_invocation
+                .set(self.current_invocation.get() + 1);
+            self.done_hard_things.set(self.current_invocation.get());
         }
 
         fn fight_enemies(&self) {
-            self.fought_enemies.set(true);
+            self.current_invocation
+                .set(self.current_invocation.get() + 1);
+            self.fought_enemies.set(self.current_invocation.get());
         }
     }
 
@@ -319,18 +342,22 @@ mod tests {
     }
 
     struct WeaponDouble {
-        pub is_shot: Cell<bool>,
+        pub times_shot: Cell<u32>,
     }
     impl WeaponDouble {
         fn new() -> WeaponDouble {
             WeaponDouble {
-                is_shot: Cell::new(false),
+                times_shot: Cell::default(),
             }
+        }
+
+        fn verify<T: Fn(u32) -> bool>(&self, check: T) {
+            assert!(check(self.times_shot.get()));
         }
     }
     impl Megaweapon for WeaponDouble {
         fn shoot(&self) {
-            self.is_shot.set(true);
+            self.times_shot.set(self.times_shot.get() + 1);
         }
     }
 
@@ -350,5 +377,13 @@ mod tests {
         }
 
         async fn teardown(self) {}
+    }
+
+    fn at_least(min_times: u32) -> impl Fn(u32) -> bool {
+        return (move |times: u32| (times >= min_times));
+    }
+
+    fn once() -> impl Fn(u32) -> bool {
+        return (move |times: u32| (times == 1));
     }
 }
