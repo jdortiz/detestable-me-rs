@@ -79,6 +79,11 @@ impl Supervillain<'_> {
             }
         }
     }
+
+    pub fn start_world_domination_stage2<H: Henchman>(&self, henchman: H) {
+        henchman.do_hard_things();
+        henchman.fight_enemies();
+    }
 }
 
 impl TryFrom<&str> for Supervillain<'_> {
@@ -109,7 +114,7 @@ pub enum EvilError {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
+    use std::cell::Cell;
     use test_context::{AsyncTestContext, TestContext, test_context};
 
     use crate::test_common;
@@ -171,7 +176,7 @@ mod tests {
 
         ctx.sut.attack(&weapon);
 
-        assert!(*weapon.is_shot.borrow());
+        assert!(weapon.is_shot.get());
     }
 
     #[test_context(Context)]
@@ -217,7 +222,7 @@ mod tests {
     #[test]
     fn world_domination_stage1_builds_hq_in_first_weak_target(ctx: &mut Context) {
         let gdummy = GadgetDummy {};
-        let mut hm_spy = HenchmanSpy { hq_location: None };
+        let mut hm_spy = HenchmanDouble::default();
         let mut sk_double = doubles::Sidekick::new();
         sk_double.targets = test_common::TARGETS.map(String::from).to_vec();
         ctx.sut.sidekick = Some(sk_double);
@@ -228,6 +233,17 @@ mod tests {
             hm_spy.hq_location,
             Some(test_common::FIRST_TARGET.to_string())
         );
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn world_domination_stage2_tells_henchman_to_do_hard_things_and_fight_with_enemies(
+        ctx: &mut Context,
+    ) {
+        let mut henchman = HenchmanDouble::default();
+        henchman.assertions = vec![Box::new(move |h| h.verify_two_things_done())];
+
+        ctx.sut.start_world_domination_stage2(henchman);
     }
 
     pub(crate) mod doubles {
@@ -266,29 +282,55 @@ mod tests {
         fn do_stuff(&self) {}
     }
 
-    struct HenchmanSpy {
+    #[derive(Default)]
+    struct HenchmanDouble {
         hq_location: Option<String>,
+        done_hard_things: Cell<bool>,
+        fought_enemies: Cell<bool>,
+        assertions: Vec<Box<dyn Fn(&HenchmanDouble) -> () + Send>>,
     }
 
-    impl Henchman for HenchmanSpy {
+    impl HenchmanDouble {
+        fn verify_two_things_done(&self) {
+            assert!(self.done_hard_things.get() && self.fought_enemies.get());
+        }
+    }
+
+    impl Henchman for HenchmanDouble {
         fn build_secret_hq(&mut self, location: String) {
             self.hq_location = Some(location);
+        }
+
+        fn do_hard_things(&self) {
+            self.done_hard_things.set(true);
+        }
+
+        fn fight_enemies(&self) {
+            self.fought_enemies.set(true);
+        }
+    }
+
+    impl Drop for HenchmanDouble {
+        fn drop(&mut self) {
+            for a in &self.assertions {
+                a(self);
+            }
         }
     }
 
     struct WeaponDouble {
-        pub is_shot: RefCell<bool>,
+        pub is_shot: Cell<bool>,
     }
     impl WeaponDouble {
         fn new() -> WeaponDouble {
             WeaponDouble {
-                is_shot: RefCell::new(false),
+                is_shot: Cell::new(false),
             }
         }
     }
     impl Megaweapon for WeaponDouble {
         fn shoot(&self) {
-            *self.is_shot.borrow_mut() = true;
+            self.is_shot.set(true);
         }
     }
 
