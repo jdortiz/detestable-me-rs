@@ -4,3 +4,7 @@ pub const PRIMARY_FULL_NAME: &str = "Lex Luthor";
 pub const SECONDARY_FIRST_NAME: &str = "Darth";
 pub const SECONDARY_LAST_NAME: &str = "Vader";
 pub const SECONDARY_FULL_NAME: &str = "Darth Vader";
+pub const FIRST_TARGET: &str = "Tampa";
+pub const TARGETS: [&'static str; 3] = [FIRST_TARGET, "Pamplona", "Vilnius"];
+pub const MAIN_SECRET_MESSAGE: &str = "Nobody should know this";
+pub const MAIN_CIPHERED_MESSAGE: &str = "+Nobody should know this+";
