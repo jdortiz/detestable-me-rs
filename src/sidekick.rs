@@ -22,4 +22,6 @@ impl<'a> Sidekick<'a> {
     pub fn get_weak_targets<G: Gadget>(&self, _gadget: &G) -> Vec<String> {
         vec![]
     }
+
+    pub fn tell(&self, _ciphered_msg: &str) {}
 }
