@@ -155,8 +155,10 @@ mod tests {
     fn set_full_name_sets_first_and_last_names(ctx: &mut Context) {
         ctx.sut.set_full_name(test_common::SECONDARY_FULL_NAME);
 
-        assert_eq!(ctx.sut.first_name, test_common::SECONDARY_FIRST_NAME);
-        assert_eq!(ctx.sut.last_name, test_common::SECONDARY_LAST_NAME);
+        // assert2::check!(ctx.sut.first_name == "A");
+        // assert2::assert!(ctx.sut.last_name == "B");
+        assert2::check!(ctx.sut.first_name == test_common::SECONDARY_FIRST_NAME);
+        assert2::assert!(ctx.sut.last_name == test_common::SECONDARY_LAST_NAME);
     }
 
     #[test_context(Context)]
