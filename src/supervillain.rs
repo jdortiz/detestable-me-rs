@@ -130,6 +130,7 @@ pub enum EvilError {
 
 #[cfg(test)]
 mod tests {
+    use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
     use std::cell::Cell;
     use test_context::{AsyncTestContext, TestContext, test_context};
 
@@ -180,9 +181,7 @@ mod tests {
         let Err(error) = result else {
             panic!("Unexpected value returned by try_from");
         };
-        assert!(
-            matches!(error, EvilError::ParseError { purpose, reason } if purpose =="full_name" && reason == "Too few arguments")
-        )
+        assert_matches!(error, EvilError::ParseError { purpose, reason } if purpose =="full_name" && reason == "Too few arguments");
     }
 
     #[test_context(Context)]
@@ -220,7 +219,7 @@ mod tests {
 
         ctx.sut.conspire();
 
-        assert!(ctx.sut.sidekick.is_some(), "Sidekick fired unexpectedly");
+        assert_some!(&ctx.sut.sidekick, "Sidekick fired unexpectedly");
     }
 
     #[test_context(Context)]
@@ -230,10 +229,8 @@ mod tests {
         sk_double.agree_answer = false;
         ctx.sut.sidekick = Some(sk_double);
         ctx.sut.conspire();
-        assert!(
-            ctx.sut.sidekick.is_none(),
-            "Sidekick not fired unexpectedly"
-        );
+
+        assert_none!(&ctx.sut.sidekick, "Sidekick not fired unexpectedly");
     }
 
     #[test_context(Context)]
@@ -241,7 +238,7 @@ mod tests {
     fn conspiracy_without_sidekick_doesnt_fail(ctx: &mut Context) {
         ctx.sut.conspire();
 
-        assert!(ctx.sut.sidekick.is_none(), "Unexpected sidekick");
+        assert_none!(&ctx.sut.sidekick, "Unexpected sidekick");
     }
 
     #[test_context(Context)]
@@ -255,10 +252,7 @@ mod tests {
 
         ctx.sut.start_world_domination_stage1(&mut hm_spy, &gdummy);
 
-        assert_eq!(
-            hm_spy.hq_location,
-            Some(test_common::FIRST_TARGET.to_string())
-        );
+        assert_some_eq_x!(&hm_spy.hq_location, test_common::FIRST_TARGET);
     }
 
     #[test_context(Context)]
@@ -288,7 +282,7 @@ mod tests {
     }
 
     pub(crate) mod doubles {
-        use std::{cell::RefCell, marker::PhantomData};
+        use std::{cell::RefCell, fmt, marker::PhantomData};
 
         use crate::Gadget;
 
@@ -333,6 +327,16 @@ mod tests {
                 for a in &self.assertions {
                     a(self);
                 }
+            }
+        }
+
+        impl fmt::Debug for Sidekick<'_> {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.debug_struct("Sidekick")
+                    .field("agree_answer", &self.agree_answer)
+                    .field("targets", &self.targets)
+                    .field("received_msg", &self.received_msg)
+                    .finish()
             }
         }
     }
