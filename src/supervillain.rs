@@ -135,10 +135,9 @@ pub enum EvilError {
 mod tests {
     use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
     use mockall::{Sequence, predicate::eq};
-    use std::cell::Cell;
     use test_context::{AsyncTestContext, TestContext, test_context};
 
-    use crate::{gadget::MockGadget, henchman::MockHenchman, test_common};
+    use crate::{cipher::MockCipher, gadget::MockGadget, henchman::MockHenchman, test_common};
 
     use super::*;
 
@@ -297,18 +296,13 @@ mod tests {
             .once()
             .return_const(());
         ctx.sut.sidekick = Some(mock_sidekick);
-        let fake_cipher = CipherDouble {};
+        let mut mock_cipher = MockCipher::new();
+        mock_cipher
+            .expect_transform()
+            .returning(|secret, _| String::from("+") + secret + "+");
 
         ctx.sut
-            .tell_plans(test_common::MAIN_SECRET_MESSAGE, &fake_cipher);
-    }
-
-    struct CipherDouble;
-
-    impl Cipher for CipherDouble {
-        fn transform(&self, secret: &str, _key: &str) -> String {
-            String::from("+") + secret + "+"
-        }
+            .tell_plans(test_common::MAIN_SECRET_MESSAGE, &mock_cipher);
     }
 
     struct Context<'a> {
