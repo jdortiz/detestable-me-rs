@@ -134,11 +134,11 @@ pub enum EvilError {
 #[cfg(test)]
 mod tests {
     use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
-    use mockall::predicate::eq;
+    use mockall::{Sequence, predicate::eq};
     use std::cell::Cell;
     use test_context::{AsyncTestContext, TestContext, test_context};
 
-    use crate::{gadget::MockGadget, test_common};
+    use crate::{gadget::MockGadget, henchman::MockHenchman, test_common};
 
     use super::*;
 
@@ -250,7 +250,11 @@ mod tests {
     #[test]
     fn world_domination_stage1_builds_hq_in_first_weak_target(ctx: &mut Context) {
         let gdummy = MockGadget::new();
-        let mut hm_spy = HenchmanDouble::default();
+        let mut mock_henchman = MockHenchman::new();
+        mock_henchman
+            .expect_build_secret_hq()
+            .with(eq(String::from(test_common::FIRST_TARGET)))
+            .return_const(());
         let mut mock_sidekick = Sidekick::new();
         mock_sidekick
             .expect_get_weak_targets()
@@ -258,9 +262,8 @@ mod tests {
             .returning(|_| test_common::TARGETS.map(String::from).to_vec());
         ctx.sut.sidekick = Some(mock_sidekick);
 
-        ctx.sut.start_world_domination_stage1(&mut hm_spy, &gdummy);
-
-        assert_some_eq_x!(&hm_spy.hq_location, test_common::FIRST_TARGET);
+        ctx.sut
+            .start_world_domination_stage1(&mut mock_henchman, &gdummy);
     }
 
     #[test_context(Context)]
@@ -268,10 +271,20 @@ mod tests {
     fn world_domination_stage2_tells_henchman_to_do_hard_things_and_fight_with_enemies(
         ctx: &mut Context,
     ) {
-        let mut henchman = HenchmanDouble::default();
-        henchman.assertions = vec![Box::new(move |h| h.verify_two_things_done())];
+        let mut mock_henchman = MockHenchman::new();
+        let mut sequence = Sequence::new();
+        mock_henchman
+            .expect_fight_enemies()
+            .once()
+            .in_sequence(&mut sequence)
+            .return_const(());
+        mock_henchman
+            .expect_do_hard_things()
+            .once()
+            .in_sequence(&mut sequence)
+            .return_const(());
 
-        ctx.sut.start_world_domination_stage2(henchman);
+        ctx.sut.start_world_domination_stage2(mock_henchman);
     }
 
     #[test_context(Context)]
@@ -295,47 +308,6 @@ mod tests {
     impl Cipher for CipherDouble {
         fn transform(&self, secret: &str, _key: &str) -> String {
             String::from("+") + secret + "+"
-        }
-    }
-
-    #[derive(Default)]
-    struct HenchmanDouble {
-        hq_location: Option<String>,
-        current_invocation: Cell<u32>,
-        done_hard_things: Cell<u32>,
-        fought_enemies: Cell<u32>,
-        assertions: Vec<Box<dyn Fn(&HenchmanDouble) -> () + Send>>,
-    }
-
-    impl HenchmanDouble {
-        fn verify_two_things_done(&self) {
-            assert!(self.done_hard_things.get() == 2 && self.fought_enemies.get() == 1);
-        }
-    }
-
-    impl Henchman for HenchmanDouble {
-        fn build_secret_hq(&mut self, location: String) {
-            self.hq_location = Some(location);
-        }
-
-        fn do_hard_things(&self) {
-            self.current_invocation
-                .set(self.current_invocation.get() + 1);
-            self.done_hard_things.set(self.current_invocation.get());
-        }
-
-        fn fight_enemies(&self) {
-            self.current_invocation
-                .set(self.current_invocation.get() + 1);
-            self.fought_enemies.set(self.current_invocation.get());
-        }
-    }
-
-    impl Drop for HenchmanDouble {
-        fn drop(&mut self) {
-            for a in &self.assertions {
-                a(self);
-            }
         }
     }
 
