@@ -20,4 +20,5 @@ tokio = { version = "1.47.1", features = ["macros", "time", "rt"] }
 [dev-dependencies]
 assert2 = "0.3.16"
 assertables = "9.8.2"
+mockall = "0.13.1"
 test-context = "0.4.1"

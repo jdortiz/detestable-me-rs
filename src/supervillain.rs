@@ -2,6 +2,8 @@
 #![allow(unused)]
 use std::time::Duration;
 
+#[cfg(test)]
+use mockall::automock;
 use rand::Rng;
 use thiserror::Error;
 
@@ -20,6 +22,7 @@ pub struct Supervillain<'a> {
     pub shared_key: String,
 }
 
+#[cfg_attr(test, automock)]
 pub trait Megaweapon {
     fn shoot(&self);
 }
@@ -189,21 +192,19 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn non_intensive_attack_shoots_weapon_once(ctx: &mut Context) {
-        let weapon = WeaponDouble::new();
+        let mut weapon = MockMegaweapon::new();
+        weapon.expect_shoot().once().return_const(());
 
         ctx.sut.attack(&weapon, false);
-
-        weapon.verify(once());
     }
 
     #[test_context(Context)]
     #[test]
     fn intensive_attack_shoots_weapon_twice_or_more(ctx: &mut Context) {
-        let weapon = WeaponDouble::new();
+        let mut weapon = MockMegaweapon::new();
+        weapon.expect_shoot().times(2..=3).return_const(());
 
         ctx.sut.attack(&weapon, true);
-
-        weapon.verify(at_least(2));
     }
 
     #[test_context(Context)]
@@ -398,26 +399,6 @@ mod tests {
         }
     }
 
-    struct WeaponDouble {
-        pub times_shot: Cell<u32>,
-    }
-    impl WeaponDouble {
-        fn new() -> WeaponDouble {
-            WeaponDouble {
-                times_shot: Cell::default(),
-            }
-        }
-
-        fn verify<T: Fn(u32) -> bool>(&self, check: T) {
-            assert!(check(self.times_shot.get()));
-        }
-    }
-    impl Megaweapon for WeaponDouble {
-        fn shoot(&self) {
-            self.times_shot.set(self.times_shot.get() + 1);
-        }
-    }
-
     struct Context<'a> {
         sut: Supervillain<'a>,
     }
@@ -434,13 +415,5 @@ mod tests {
         }
 
         async fn teardown(self) {}
-    }
-
-    fn at_least(min_times: u32) -> impl Fn(u32) -> bool {
-        return (move |times: u32| (times >= min_times));
-    }
-
-    fn once() -> impl Fn(u32) -> bool {
-        return (move |times: u32| (times == 1));
     }
 }
