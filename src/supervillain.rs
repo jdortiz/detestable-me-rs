@@ -138,7 +138,7 @@ mod tests {
     use std::cell::Cell;
     use test_context::{AsyncTestContext, TestContext, test_context};
 
-    use crate::test_common;
+    use crate::{gadget::MockGadget, test_common};
 
     use super::*;
 
@@ -249,7 +249,7 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn world_domination_stage1_builds_hq_in_first_weak_target(ctx: &mut Context) {
-        let gdummy = GadgetDummy {};
+        let gdummy = MockGadget::new();
         let mut hm_spy = HenchmanDouble::default();
         let mut mock_sidekick = Sidekick::new();
         mock_sidekick
@@ -296,12 +296,6 @@ mod tests {
         fn transform(&self, secret: &str, _key: &str) -> String {
             String::from("+") + secret + "+"
         }
-    }
-
-    struct GadgetDummy;
-
-    impl Gadget for GadgetDummy {
-        fn do_stuff(&self) {}
     }
 
     #[derive(Default)]
