@@ -1,6 +1,9 @@
 //! Module for sideckicks and all the related functionality
 #![allow(dead_code)]
 
+#[cfg(test)]
+use mockall::mock;
+
 use crate::Gadget;
 
 /// Type that represents a sidekick.
@@ -24,4 +27,14 @@ impl<'a> Sidekick<'a> {
     }
 
     pub fn tell(&self, _ciphered_msg: &str) {}
+}
+
+#[cfg(test)]
+mock! {
+    #[derive(Debug)]
+    pub Sidekick<'a> {
+        pub fn agree(&self) -> bool;
+        pub fn get_weak_targets(&self, _gadget: &'a dyn Gadget) -> Vec<String>;
+        pub fn tell(&self, _ciphered_msg: &str);
+    }
 }

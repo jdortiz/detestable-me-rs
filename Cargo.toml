@@ -21,4 +21,5 @@ tokio = { version = "1.47.1", features = ["macros", "time", "rt"] }
 assert2 = "0.3.16"
 assertables = "9.8.2"
 mockall = "0.13.1"
+mockall_double = "0.3.1"
 test-context = "0.4.1"

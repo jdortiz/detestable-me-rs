@@ -4,14 +4,14 @@ use std::time::Duration;
 
 #[cfg(test)]
 use mockall::automock;
+#[cfg(test)]
+use mockall_double::double;
 use rand::Rng;
 use thiserror::Error;
 
-#[cfg(not(test))]
+#[cfg_attr(test, double)]
 use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
-#[cfg(test)]
-use tests::doubles::Sidekick;
 
 /// Type that represents supervillains.
 #[derive(Default)]
@@ -134,6 +134,7 @@ pub enum EvilError {
 #[cfg(test)]
 mod tests {
     use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
+    use mockall::predicate::eq;
     use std::cell::Cell;
     use test_context::{AsyncTestContext, TestContext, test_context};
 
@@ -216,9 +217,9 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn keep_sidekick_if_agrees_with_conspiracy(ctx: &mut Context) {
-        let mut sk_double = doubles::Sidekick::new();
-        sk_double.agree_answer = true;
-        ctx.sut.sidekick = Some(sk_double);
+        let mut mock_sidekick = Sidekick::new();
+        mock_sidekick.expect_agree().once().return_const(true);
+        ctx.sut.sidekick = Some(mock_sidekick);
 
         ctx.sut.conspire();
 
@@ -228,9 +229,10 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn fire_sidekick_if_doesnt_agree_with_conspiracy(ctx: &mut Context) {
-        let mut sk_double = doubles::Sidekick::new();
-        sk_double.agree_answer = false;
-        ctx.sut.sidekick = Some(sk_double);
+        let mut mock_sidekick = Sidekick::new();
+        mock_sidekick.expect_agree().once().return_const(false);
+        ctx.sut.sidekick = Some(mock_sidekick);
+
         ctx.sut.conspire();
 
         assert_none!(&ctx.sut.sidekick, "Sidekick not fired unexpectedly");
@@ -249,9 +251,12 @@ mod tests {
     fn world_domination_stage1_builds_hq_in_first_weak_target(ctx: &mut Context) {
         let gdummy = GadgetDummy {};
         let mut hm_spy = HenchmanDouble::default();
-        let mut sk_double = doubles::Sidekick::new();
-        sk_double.targets = test_common::TARGETS.map(String::from).to_vec();
-        ctx.sut.sidekick = Some(sk_double);
+        let mut mock_sidekick = Sidekick::new();
+        mock_sidekick
+            .expect_get_weak_targets()
+            .once()
+            .returning(|_| test_common::TARGETS.map(String::from).to_vec());
+        ctx.sut.sidekick = Some(mock_sidekick);
 
         ctx.sut.start_world_domination_stage1(&mut hm_spy, &gdummy);
 
@@ -271,77 +276,18 @@ mod tests {
 
     #[test_context(Context)]
     #[test]
-
     fn tell_plans_sends_ciphered_message(ctx: &mut Context) {
-        let mut sk_double = doubles::Sidekick::new();
-        sk_double.assertions = vec![Box::new(move |s| {
-            s.verify_received_msg(test_common::MAIN_CIPHERED_MESSAGE)
-        })];
-        ctx.sut.sidekick = Some(sk_double);
+        let mut mock_sidekick = Sidekick::new();
+        mock_sidekick
+            .expect_tell()
+            .with(eq(String::from(test_common::MAIN_CIPHERED_MESSAGE)))
+            .once()
+            .return_const(());
+        ctx.sut.sidekick = Some(mock_sidekick);
         let fake_cipher = CipherDouble {};
 
         ctx.sut
             .tell_plans(test_common::MAIN_SECRET_MESSAGE, &fake_cipher);
-    }
-
-    pub(crate) mod doubles {
-        use std::{cell::RefCell, fmt, marker::PhantomData};
-
-        use crate::Gadget;
-
-        pub struct Sidekick<'a> {
-            phantom: PhantomData<&'a ()>,
-            pub agree_answer: bool,
-            pub targets: Vec<String>,
-            pub received_msg: RefCell<String>,
-            pub assertions: Vec<Box<dyn Fn(&Sidekick) -> () + Send>>,
-        }
-
-        impl<'a> Sidekick<'a> {
-            pub fn new() -> Sidekick<'a> {
-                Sidekick {
-                    phantom: PhantomData,
-                    agree_answer: false,
-                    targets: vec![],
-                    received_msg: RefCell::new(String::from("")),
-                    assertions: vec![],
-                }
-            }
-
-            pub fn agree(&self) -> bool {
-                self.agree_answer
-            }
-
-            pub fn get_weak_targets<G: Gadget>(&self, _gadget: &G) -> Vec<String> {
-                self.targets.clone()
-            }
-
-            pub fn tell(&self, ciphered_msg: &str) {
-                *self.received_msg.borrow_mut() = ciphered_msg.to_owned();
-            }
-
-            pub fn verify_received_msg(&self, expected_msg: &str) {
-                assert_eq!(*self.received_msg.borrow(), expected_msg);
-            }
-        }
-
-        impl Drop for Sidekick<'_> {
-            fn drop(&mut self) {
-                for a in &self.assertions {
-                    a(self);
-                }
-            }
-        }
-
-        impl fmt::Debug for Sidekick<'_> {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-                f.debug_struct("Sidekick")
-                    .field("agree_answer", &self.agree_answer)
-                    .field("targets", &self.targets)
-                    .field("received_msg", &self.received_msg)
-                    .finish()
-            }
-        }
     }
 
     struct CipherDouble;
