@@ -1,6 +1,6 @@
 //! Module for supervillains and their related stuff
 #![allow(unused)]
-use std::time::Duration;
+use std::{fs::File, io::Read, time::Duration};
 
 #[cfg(test)]
 use mockall::automock;
@@ -12,6 +12,8 @@ use thiserror::Error;
 #[cfg_attr(test, double)]
 use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
+
+const LISTING_PATH: &str = "tmp/listings.csv";
 
 /// Type that represents supervillains.
 #[derive(Default)]
@@ -102,6 +104,23 @@ impl Supervillain<'_> {
             let ciphered_msg = cipher.transform(secret, &self.shared_key);
             sidekick.tell(&ciphered_msg);
         }
+    }
+
+    pub fn are_there_vulnerable_locations(&self) -> Option<bool> {
+        let mut listing = String::new();
+        let Ok(mut file_listing) = File::open(LISTING_PATH) else {
+            return None;
+        };
+        let Ok(n) = file_listing.read_to_string(&mut listing) else {
+            return None;
+        };
+
+        for line in listing.lines() {
+            if line.ends_with("weak") {
+                return Some(true);
+            }
+        }
+        Some(false)
     }
 }
 
