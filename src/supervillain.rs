@@ -167,8 +167,7 @@ mod tests {
     use super::*;
 
     thread_local! {
-        static FILE_OPEN_OK: Cell<bool> = Cell::new(true);
-        static FILE_READ_RESULT: RefCell<Option<String>> = RefCell::new(None);
+        static FILE_OPEN_OK: RefCell<Option<doubles::File>> = RefCell::new(None);
     }
 
     #[test_context(Context)]
@@ -338,40 +337,36 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_with_no_file_returns_none(ctx: &mut Context) {
-        FILE_OPEN_OK.set(false);
-        FILE_READ_RESULT.set(None);
+        FILE_OPEN_OK.replace(None);
         assert_none!(ctx.sut.are_there_vulnerable_locations());
     }
 
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_with_file_reading_error_returns_none(ctx: &mut Context) {
-        FILE_OPEN_OK.set(true);
-        FILE_READ_RESULT.set(None);
+        FILE_OPEN_OK.replace(Some(doubles::File::new(None)));
         assert_none!(ctx.sut.are_there_vulnerable_locations());
     }
 
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_with_weak_returns_true(ctx: &mut Context) {
-        FILE_OPEN_OK.set(true);
-        FILE_READ_RESULT.set(Some(String::from(
+        FILE_OPEN_OK.replace(Some(doubles::File::new(Some(String::from(
             r#"Madrid,strong
                Las Vegas,weak
                New York,strong"#,
-        )));
+        )))));
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), true);
     }
 
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_without_weak_returns_false(ctx: &mut Context) {
-        FILE_OPEN_OK.set(true);
-        FILE_READ_RESULT.set(Some(String::from(
+        FILE_OPEN_OK.replace(Some(doubles::File::new(Some(String::from(
             r#"Madrid,strong
                Oregon,strong
                New York,strong"#,
-        )));
+        )))));
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), false);
     }
 
@@ -401,19 +396,25 @@ mod tests {
 
         use super::*;
 
-        pub struct File {}
+        pub struct File {
+            read_result: Option<String>,
+        }
 
         impl File {
+            pub fn new(read_result: Option<String>) -> File {
+                File { read_result }
+            }
+
             pub fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
-                if FILE_OPEN_OK.get() {
-                    Ok(File {})
+                if let Some(file) = FILE_OPEN_OK.take() {
+                    Ok(file)
                 } else {
                     Err(Error::from(ErrorKind::NotFound))
                 }
             }
             pub fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-                if let Some(mut content) = FILE_READ_RESULT.take() {
-                    *buf = content;
+                if let Some(ref content) = self.read_result {
+                    *buf = content.to_owned();
                     Ok(buf.len())
                 } else {
                     Err(Error::from(ErrorKind::Other))
