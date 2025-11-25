@@ -1,6 +1,10 @@
 //! Module for supervillains and their related stuff
 #![allow(unused)]
-use std::{fs::File, io::Read, time::Duration};
+#[cfg(not(test))]
+use std::fs::File;
+use std::{io::Read, time::Duration};
+#[cfg(test)]
+use tests::doubles::File;
 
 #[cfg(test)]
 use mockall::automock;
@@ -324,6 +328,12 @@ mod tests {
             .tell_plans(test_common::MAIN_SECRET_MESSAGE, &mock_cipher);
     }
 
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_with_no_file_returns_none(ctx: &mut Context) {
+        assert_none!(ctx.sut.are_there_vulnerable_locations());
+    }
+
     struct Context<'a> {
         sut: Supervillain<'a>,
     }
@@ -340,5 +350,23 @@ mod tests {
         }
 
         async fn teardown(self) {}
+    }
+
+    pub mod doubles {
+        use std::{
+            io::{self, Error, ErrorKind},
+            path::Path,
+        };
+
+        pub struct File {}
+
+        impl File {
+            pub fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
+                Err(Error::from(ErrorKind::NotFound))
+            }
+            pub fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
+                Err(Error::from(ErrorKind::Other))
+            }
+        }
     }
 }
