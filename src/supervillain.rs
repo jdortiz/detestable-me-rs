@@ -351,6 +351,30 @@ mod tests {
         assert_none!(ctx.sut.are_there_vulnerable_locations());
     }
 
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_with_weak_returns_true(ctx: &mut Context) {
+        FILE_OPEN_OK.set(true);
+        FILE_READ_RESULT.set(Some(String::from(
+            r#"Madrid,strong
+               Las Vegas,weak
+               New York,strong"#,
+        )));
+        assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), true);
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_without_weak_returns_false(ctx: &mut Context) {
+        FILE_OPEN_OK.set(true);
+        FILE_READ_RESULT.set(Some(String::from(
+            r#"Madrid,strong
+               Oregon,strong
+               New York,strong"#,
+        )));
+        assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), false);
+    }
+
     struct Context<'a> {
         sut: Supervillain<'a>,
     }
@@ -388,8 +412,9 @@ mod tests {
                 }
             }
             pub fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-                if let Some(_) = FILE_READ_RESULT.take() {
-                    Ok(0)
+                if let Some(mut content) = FILE_READ_RESULT.take() {
+                    *buf = content;
+                    Ok(buf.len())
                 } else {
                     Err(Error::from(ErrorKind::Other))
                 }
