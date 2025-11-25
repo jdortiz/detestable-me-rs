@@ -156,6 +156,8 @@ pub enum EvilError {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::{Cell, RefCell};
+
     use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
     use mockall::{Sequence, predicate::eq};
     use test_context::{AsyncTestContext, TestContext, test_context};
@@ -163,6 +165,11 @@ mod tests {
     use crate::{cipher::MockCipher, gadget::MockGadget, henchman::MockHenchman, test_common};
 
     use super::*;
+
+    thread_local! {
+        static FILE_OPEN_OK: Cell<bool> = Cell::new(true);
+        static FILE_READ_RESULT: RefCell<Option<String>> = RefCell::new(None);
+    }
 
     #[test_context(Context)]
     #[test]
@@ -331,6 +338,16 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_with_no_file_returns_none(ctx: &mut Context) {
+        FILE_OPEN_OK.set(false);
+        FILE_READ_RESULT.set(None);
+        assert_none!(ctx.sut.are_there_vulnerable_locations());
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_with_file_reading_error_returns_none(ctx: &mut Context) {
+        FILE_OPEN_OK.set(true);
+        FILE_READ_RESULT.set(None);
         assert_none!(ctx.sut.are_there_vulnerable_locations());
     }
 
@@ -358,14 +375,24 @@ mod tests {
             path::Path,
         };
 
+        use super::*;
+
         pub struct File {}
 
         impl File {
             pub fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
-                Err(Error::from(ErrorKind::NotFound))
+                if FILE_OPEN_OK.get() {
+                    Ok(File {})
+                } else {
+                    Err(Error::from(ErrorKind::NotFound))
+                }
             }
             pub fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
-                Err(Error::from(ErrorKind::Other))
+                if let Some(_) = FILE_READ_RESULT.take() {
+                    Ok(0)
+                } else {
+                    Err(Error::from(ErrorKind::Other))
+                }
             }
         }
     }
