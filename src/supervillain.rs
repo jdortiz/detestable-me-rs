@@ -1,6 +1,10 @@
 //! Module for supervillains and their related stuff
 #![allow(unused)]
-use std::time::Duration;
+#[cfg(not(test))]
+use std::fs::File;
+use std::{io::Read, time::Duration};
+#[cfg(test)]
+use tests::doubles::File;
 
 #[cfg(test)]
 use mockall::automock;
@@ -12,6 +16,8 @@ use thiserror::Error;
 #[cfg_attr(test, double)]
 use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
+
+const LISTING_PATH: &str = "tmp/listings.csv";
 
 /// Type that represents supervillains.
 #[derive(Default)]
@@ -103,6 +109,23 @@ impl Supervillain<'_> {
             sidekick.tell(&ciphered_msg);
         }
     }
+
+    pub fn are_there_vulnerable_locations(&self) -> Option<bool> {
+        let mut listing = String::new();
+        let Ok(mut file_listing) = File::open(LISTING_PATH) else {
+            return None;
+        };
+        let Ok(n) = file_listing.read_to_string(&mut listing) else {
+            return None;
+        };
+
+        for line in listing.lines() {
+            if line.ends_with("weak") {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
 }
 
 impl TryFrom<&str> for Supervillain<'_> {
@@ -133,6 +156,8 @@ pub enum EvilError {
 
 #[cfg(test)]
 mod tests {
+    use std::cell::{Cell, RefCell};
+
     use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
     use mockall::{Sequence, predicate::eq};
     use test_context::{AsyncTestContext, TestContext, test_context};
@@ -140,6 +165,10 @@ mod tests {
     use crate::{cipher::MockCipher, gadget::MockGadget, henchman::MockHenchman, test_common};
 
     use super::*;
+
+    thread_local! {
+        static FILE_OPEN_OK: RefCell<Option<doubles::File>> = RefCell::new(None);
+    }
 
     #[test_context(Context)]
     #[test]
@@ -305,6 +334,42 @@ mod tests {
             .tell_plans(test_common::MAIN_SECRET_MESSAGE, &mock_cipher);
     }
 
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_with_no_file_returns_none(ctx: &mut Context) {
+        FILE_OPEN_OK.replace(None);
+        assert_none!(ctx.sut.are_there_vulnerable_locations());
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_with_file_reading_error_returns_none(ctx: &mut Context) {
+        FILE_OPEN_OK.replace(Some(doubles::File::new(None)));
+        assert_none!(ctx.sut.are_there_vulnerable_locations());
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_with_weak_returns_true(ctx: &mut Context) {
+        FILE_OPEN_OK.replace(Some(doubles::File::new(Some(String::from(
+            r#"Madrid,strong
+               Las Vegas,weak
+               New York,strong"#,
+        )))));
+        assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), true);
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn vulnerable_locations_without_weak_returns_false(ctx: &mut Context) {
+        FILE_OPEN_OK.replace(Some(doubles::File::new(Some(String::from(
+            r#"Madrid,strong
+               Oregon,strong
+               New York,strong"#,
+        )))));
+        assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), false);
+    }
+
     struct Context<'a> {
         sut: Supervillain<'a>,
     }
@@ -321,5 +386,40 @@ mod tests {
         }
 
         async fn teardown(self) {}
+    }
+
+    pub mod doubles {
+        use std::{
+            io::{self, Error, ErrorKind},
+            path::Path,
+        };
+
+        use super::*;
+
+        pub struct File {
+            read_result: Option<String>,
+        }
+
+        impl File {
+            pub fn new(read_result: Option<String>) -> File {
+                File { read_result }
+            }
+
+            pub fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
+                if let Some(file) = FILE_OPEN_OK.take() {
+                    Ok(file)
+                } else {
+                    Err(Error::from(ErrorKind::NotFound))
+                }
+            }
+            pub fn read_to_string(&mut self, buf: &mut String) -> io::Result<usize> {
+                if let Some(ref content) = self.read_result {
+                    *buf = content.to_owned();
+                    Ok(buf.len())
+                } else {
+                    Err(Error::from(ErrorKind::Other))
+                }
+            }
+        }
     }
 }
