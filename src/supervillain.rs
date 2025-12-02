@@ -2,7 +2,10 @@
 #![allow(unused)]
 #[cfg(not(test))]
 use std::fs::File;
-use std::{io::Read, time::Duration};
+use std::{
+    io::{BufRead, BufReader, Read},
+    time::Duration,
+};
 #[cfg(test)]
 use tests::doubles::File;
 
@@ -121,6 +124,23 @@ impl Supervillain<'_> {
 
         for line in listing.lines() {
             if line.ends_with("weak") {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
+
+    pub fn are_there_vulnerable_locations_efficient(&self) -> Option<bool> {
+        let Ok(mut file_listing) = File::open(LISTING_PATH) else {
+            return None;
+        };
+
+        let buf_listing = BufReader::new(file_listing);
+        let mut list_iter = buf_listing.lines();
+        while let Some(line) = list_iter.next() {
+            if let Ok(line) = line
+                && line.ends_with("weak")
+            {
                 return Some(true);
             }
         }
