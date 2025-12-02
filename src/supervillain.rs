@@ -130,12 +130,18 @@ impl Supervillain<'_> {
         Some(false)
     }
 
-    pub fn are_there_vulnerable_locations_efficient(&self) -> Option<bool> {
-        let Ok(mut file_listing) = File::open(LISTING_PATH) else {
+    #[cfg(not(test))]
+    fn open_buf_read(path: &str) -> Option<BufReader<File>> {
+        let Ok(mut file) = File::open(path) else {
             return None;
         };
+        Some(BufReader::new(file))
+    }
 
-        let buf_listing = BufReader::new(file_listing);
+    pub fn are_there_vulnerable_locations_efficient(&self) -> Option<bool> {
+        let Some(buf_listing) = Self::open_buf_read(LISTING_PATH) else {
+            return None;
+        };
         let mut list_iter = buf_listing.lines();
         while let Some(line) = list_iter.next() {
             if let Ok(line) = line
