@@ -19,6 +19,8 @@ use thiserror::Error;
 #[cfg_attr(test, double)]
 use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
+#[cfg(not(test))]
+use aux::open_buf_read;
 
 const LISTING_PATH: &str = "tmp/listings.csv";
 
@@ -130,16 +132,8 @@ impl Supervillain<'_> {
         Some(false)
     }
 
-    #[cfg(not(test))]
-    fn open_buf_read(path: &str) -> Option<BufReader<File>> {
-        let Ok(mut file) = File::open(path) else {
-            return None;
-        };
-        Some(BufReader::new(file))
-    }
-
     pub fn are_there_vulnerable_locations_efficient(&self) -> Option<bool> {
-        let Some(buf_listing) = Self::open_buf_read(LISTING_PATH) else {
+        let Some(buf_listing) = open_buf_read(LISTING_PATH) else {
             return None;
         };
         let mut list_iter = buf_listing.lines();
@@ -178,6 +172,17 @@ impl TryFrom<&str> for Supervillain<'_> {
 pub enum EvilError {
     #[error("Parse error: purpose='{}', reason='{}'", .purpose, .reason)]
     ParseError { purpose: String, reason: String },
+}
+
+mod aux {
+    use std::{fs::File, io::BufReader};
+
+    pub fn open_buf_read(path: &str) -> Option<BufReader<File>> {
+        let Ok(mut file) = File::open(path) else {
+            return None;
+        };
+        Some(BufReader::new(file))
+    }
 }
 
 #[cfg(test)]
