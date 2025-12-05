@@ -21,6 +21,8 @@ use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
 #[cfg(not(test))]
 use aux::open_buf_read;
+#[cfg(test)]
+use tests::doubles::open_buf_read;
 
 const LISTING_PATH: &str = "tmp/listings.csv";
 
@@ -175,9 +177,12 @@ pub enum EvilError {
 }
 
 mod aux {
-    use std::{fs::File, io::BufReader};
+    use std::{
+        fs::File,
+        io::{BufRead, BufReader},
+    };
 
-    pub fn open_buf_read(path: &str) -> Option<BufReader<File>> {
+    pub fn open_buf_read(path: &str) -> Option<impl BufRead> {
         let Ok(mut file) = File::open(path) else {
             return None;
         };
@@ -199,6 +204,7 @@ mod tests {
 
     thread_local! {
         static FILE_OPEN_OK: RefCell<Option<doubles::File>> = RefCell::new(None);
+        static BUF_CONTENTS: RefCell<String> = RefCell::new(String::new());
     }
 
     #[test_context(Context)]
@@ -421,7 +427,7 @@ mod tests {
 
     pub mod doubles {
         use std::{
-            io::{self, Error, ErrorKind},
+            io::{self, Cursor, Error, ErrorKind},
             path::Path,
         };
 
@@ -451,6 +457,10 @@ mod tests {
                     Err(Error::from(ErrorKind::Other))
                 }
             }
+        }
+
+        pub fn open_buf_read(path: &str) -> Option<impl BufRead> {
+            Some(Cursor::new(BUF_CONTENTS.take()))
         }
     }
 }
