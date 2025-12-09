@@ -2,7 +2,10 @@
 #![allow(unused)]
 #[cfg(not(test))]
 use std::fs::File;
-use std::{io::Read, time::Duration};
+use std::{
+    io::{BufRead, BufReader, Read},
+    time::Duration,
+};
 #[cfg(test)]
 use tests::doubles::File;
 
@@ -16,6 +19,10 @@ use thiserror::Error;
 #[cfg_attr(test, double)]
 use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
+#[cfg(not(test))]
+use aux::open_buf_read;
+#[cfg(test)]
+use tests::doubles::open_buf_read;
 
 const LISTING_PATH: &str = "tmp/listings.csv";
 
@@ -126,6 +133,21 @@ impl Supervillain<'_> {
         }
         Some(false)
     }
+
+    pub fn are_there_vulnerable_locations_efficient(&self) -> Option<bool> {
+        let Some(buf_listing) = open_buf_read(LISTING_PATH) else {
+            return None;
+        };
+        let mut list_iter = buf_listing.lines();
+        while let Some(line) = list_iter.next() {
+            if let Ok(line) = line
+                && line.ends_with("weak")
+            {
+                return Some(true);
+            }
+        }
+        Some(false)
+    }
 }
 
 impl TryFrom<&str> for Supervillain<'_> {
@@ -154,6 +176,20 @@ pub enum EvilError {
     ParseError { purpose: String, reason: String },
 }
 
+mod aux {
+    use std::{
+        fs::File,
+        io::{BufRead, BufReader},
+    };
+
+    pub fn open_buf_read(path: &str) -> Option<impl BufRead> {
+        let Ok(mut file) = File::open(path) else {
+            return None;
+        };
+        Some(BufReader::new(file))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::cell::{Cell, RefCell};
@@ -167,7 +203,9 @@ mod tests {
     use super::*;
 
     thread_local! {
-        static FILE_OPEN_OK: RefCell<Option<doubles::File>> = RefCell::new(None);
+        static FILE_IF_CAN_OPEN: RefCell<Option<doubles::File>> = RefCell::new(None);
+        static FILE_CAN_OPEN: Cell<bool> = Cell::new(false);
+        static BUF_CONTENTS: RefCell<String> = RefCell::new(String::new());
     }
 
     #[test_context(Context)]
@@ -337,21 +375,21 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_with_no_file_returns_none(ctx: &mut Context) {
-        FILE_OPEN_OK.replace(None);
+        FILE_IF_CAN_OPEN.replace(None);
         assert_none!(ctx.sut.are_there_vulnerable_locations());
     }
 
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_with_file_reading_error_returns_none(ctx: &mut Context) {
-        FILE_OPEN_OK.replace(Some(doubles::File::new(None)));
+        FILE_IF_CAN_OPEN.replace(Some(doubles::File::new(None)));
         assert_none!(ctx.sut.are_there_vulnerable_locations());
     }
 
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_with_weak_returns_true(ctx: &mut Context) {
-        FILE_OPEN_OK.replace(Some(doubles::File::new(Some(String::from(
+        FILE_IF_CAN_OPEN.replace(Some(doubles::File::new(Some(String::from(
             r#"Madrid,strong
                Las Vegas,weak
                New York,strong"#,
@@ -362,12 +400,43 @@ mod tests {
     #[test_context(Context)]
     #[test]
     fn vulnerable_locations_without_weak_returns_false(ctx: &mut Context) {
-        FILE_OPEN_OK.replace(Some(doubles::File::new(Some(String::from(
+        FILE_IF_CAN_OPEN.replace(Some(doubles::File::new(Some(String::from(
             r#"Madrid,strong
                Oregon,strong
                New York,strong"#,
         )))));
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), false);
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn efficient_vulnerable_locations_with_no_file_returns_none(ctx: &mut Context) {
+        FILE_CAN_OPEN.set(false);
+        assert_none!(ctx.sut.are_there_vulnerable_locations_efficient());
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn efficient_vulnerable_locations_with_weak_returns_true(ctx: &mut Context) {
+        FILE_CAN_OPEN.set(true);
+        BUF_CONTENTS.replace(String::from(
+            r#"Madrid,strong
+             Las Vegas,weak
+             New York,strong"#,
+        ));
+        assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations_efficient(), true);
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn efficient_vulnerable_locations_without_weak_returns_false(ctx: &mut Context) {
+        FILE_CAN_OPEN.set(true);
+        BUF_CONTENTS.replace(String::from(
+            r#"Madrid,strong
+             Oregon,strong
+             New York,strong"#,
+        ));
+        assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations_efficient(), false);
     }
 
     struct Context<'a> {
@@ -390,7 +459,7 @@ mod tests {
 
     pub mod doubles {
         use std::{
-            io::{self, Error, ErrorKind},
+            io::{self, Cursor, Error, ErrorKind},
             path::Path,
         };
 
@@ -406,7 +475,7 @@ mod tests {
             }
 
             pub fn open<P: AsRef<Path>>(path: P) -> io::Result<File> {
-                if let Some(file) = FILE_OPEN_OK.take() {
+                if let Some(file) = FILE_IF_CAN_OPEN.take() {
                     Ok(file)
                 } else {
                     Err(Error::from(ErrorKind::NotFound))
@@ -419,6 +488,14 @@ mod tests {
                 } else {
                     Err(Error::from(ErrorKind::Other))
                 }
+            }
+        }
+
+        pub fn open_buf_read(path: &str) -> Option<impl BufRead> {
+            if FILE_CAN_OPEN.get() {
+                Some(Cursor::new(BUF_CONTENTS.take()))
+            } else {
+                None
             }
         }
     }
