@@ -26,7 +26,7 @@ use crate::{Cipher, Gadget, Henchman};
 #[cfg(not(test))]
 use aux::{open_buf_read, open_write};
 #[cfg(test)]
-use tests::doubles::open_buf_read;
+use tests::doubles::{open_buf_read, open_write};
 
 const LISTING_PATH: &str = "tmp/listings.csv";
 
@@ -225,7 +225,7 @@ mod aux {
 mod tests {
     use std::cell::{Cell, RefCell};
 
-    use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
+    use assertables::{assert_err, assert_matches, assert_none, assert_some, assert_some_eq_x};
     use mockall::{Sequence, predicate::eq};
     use test_context::{AsyncTestContext, TestContext, test_context};
 
@@ -470,6 +470,13 @@ mod tests {
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations_efficient(), false);
     }
 
+    #[test_context(Context)]
+    #[test]
+    fn spread_orders_by_file_returns_error_on_failure(ctx: &mut Context) {
+        FILE_CAN_OPEN.set(false);
+        assert_err!(ctx.sut.spread_orders_by_file("some/path", vec![]));
+    }
+
     struct Context<'a> {
         sut: Supervillain<'a>,
     }
@@ -490,7 +497,7 @@ mod tests {
 
     pub mod doubles {
         use std::{
-            io::{self, Cursor, Error, ErrorKind},
+            io::{self, Cursor, Error, ErrorKind, Write},
             path::Path,
         };
 
@@ -528,6 +535,13 @@ mod tests {
             } else {
                 None
             }
+        }
+
+        pub fn open_write<P: AsRef<Path>>(path: P) -> Result<impl Write, io::Error> {
+            Err::<Cursor<Vec<u8>>, io::Error>(io::Error::new(
+                ErrorKind::Other,
+                "Unable to create file",
+            ))
         }
     }
 }
