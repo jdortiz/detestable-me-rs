@@ -24,7 +24,7 @@ use thiserror::Error;
 use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
 #[cfg(not(test))]
-use aux::open_buf_read;
+use aux::{open_buf_read, open_write};
 #[cfg(test)]
 use tests::doubles::open_buf_read;
 
@@ -158,8 +158,7 @@ impl Supervillain<'_> {
         path: P,
         orders: Vec<String>,
     ) -> Result<usize, io::Error> {
-        let file_orders = File::create(path)?;
-        let mut buf_orders = BufWriter::new(file_orders);
+        let mut buf_orders = open_write(path)?;
 
         let mut orders_written = 0;
         write!(
@@ -206,7 +205,8 @@ pub enum EvilError {
 mod aux {
     use std::{
         fs::File,
-        io::{BufRead, BufReader},
+        io::{self, BufRead, BufReader, BufWriter, Write},
+        path::Path,
     };
 
     pub fn open_buf_read(path: &str) -> Option<impl BufRead> {
@@ -214,6 +214,10 @@ mod aux {
             return None;
         };
         Some(BufReader::new(file))
+    }
+
+    pub fn open_write<P: AsRef<Path>>(path: P) -> Result<impl Write, io::Error> {
+        File::create(path).map(|file| BufWriter::new(file))
     }
 }
 
