@@ -1,9 +1,13 @@
 //! Module for supervillains and their related stuff
 #![allow(unused)]
 #[cfg(not(test))]
-use std::fs::File;
 use std::{
-    io::{BufRead, BufReader, Read},
+    fs::File,
+    io::{BufReader, BufWriter},
+};
+use std::{
+    io::{self, BufRead, Read, Write},
+    path::Path,
     time::Duration,
 };
 #[cfg(test)]
@@ -147,6 +151,29 @@ impl Supervillain<'_> {
             }
         }
         Some(false)
+    }
+
+    pub fn spread_orders_by_file<P: AsRef<Path>>(
+        &self,
+        path: P,
+        orders: Vec<String>,
+    ) -> Result<usize, io::Error> {
+        let file_orders = File::create(path)?;
+        let mut buf_orders = BufWriter::new(file_orders);
+
+        let mut orders_written = 0;
+        write!(
+            buf_orders,
+            "I, {}, as your leader, tell you to:\n",
+            &self.full_name()
+        )?;
+
+        for order in orders {
+            write!(buf_orders, "- {}\n", order)?;
+            orders_written += 1;
+        }
+
+        Ok(orders_written)
     }
 }
 
