@@ -225,7 +225,9 @@ mod aux {
 mod tests {
     use std::cell::{Cell, RefCell};
 
-    use assertables::{assert_err, assert_matches, assert_none, assert_some, assert_some_eq_x};
+    use assertables::{
+        assert_err, assert_matches, assert_none, assert_ok_eq_x, assert_some, assert_some_eq_x,
+    };
     use mockall::{Sequence, predicate::eq};
     use test_context::{AsyncTestContext, TestContext, test_context};
 
@@ -477,6 +479,18 @@ mod tests {
         assert_err!(ctx.sut.spread_orders_by_file("some/path", vec![]));
     }
 
+    #[test_context(Context)]
+    #[test]
+    fn spread_orders_by_file_writes_provided_orders(ctx: &mut Context) {
+        FILE_CAN_OPEN.set(true);
+        let orders = vec![
+            "Build headquarters".to_string(),
+            "Fight enemies".to_string(),
+            "Conquer the world".to_string(),
+        ];
+        assert_ok_eq_x!(ctx.sut.spread_orders_by_file("some/path", orders), 3);
+    }
+
     struct Context<'a> {
         sut: Supervillain<'a>,
     }
@@ -538,10 +552,11 @@ mod tests {
         }
 
         pub fn open_write<P: AsRef<Path>>(path: P) -> Result<impl Write, io::Error> {
-            Err::<Cursor<Vec<u8>>, io::Error>(io::Error::new(
-                ErrorKind::Other,
-                "Unable to create file",
-            ))
+            if FILE_CAN_OPEN.get() {
+                Ok(Cursor::new(Vec::<u8>::new()))
+            } else {
+                Err(io::Error::new(ErrorKind::Other, "Unable to create file"))
+            }
         }
     }
 }
