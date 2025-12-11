@@ -1,10 +1,16 @@
 //! Module for supervillains and their related stuff
 #![allow(unused)]
-#[cfg(not(test))]
-use std::fs::File;
 use std::{
-    io::{BufRead, BufReader, Read},
+    cell::RefCell,
+    io::{self, BufRead, Read, Write},
+    path::Path,
+    rc::Rc,
     time::Duration,
+};
+#[cfg(not(test))]
+use std::{
+    fs::File,
+    io::{BufReader, BufWriter},
 };
 #[cfg(test)]
 use tests::doubles::File;
@@ -20,9 +26,9 @@ use thiserror::Error;
 use crate::sidekick::Sidekick;
 use crate::{Cipher, Gadget, Henchman};
 #[cfg(not(test))]
-use aux::open_buf_read;
+use aux::{open_buf_read, open_write_execute};
 #[cfg(test)]
-use tests::doubles::open_buf_read;
+use tests::doubles::{open_buf_read, open_write_execute};
 
 const LISTING_PATH: &str = "tmp/listings.csv";
 
@@ -148,6 +154,29 @@ impl Supervillain<'_> {
         }
         Some(false)
     }
+
+    pub fn spread_orders_by_file<P: AsRef<Path>>(
+        &self,
+        path: P,
+        orders: Vec<String>,
+    ) -> Result<usize, io::Error> {
+        open_write_execute(path, |mut buf_orders: Rc<RefCell<dyn Write>>| {
+            let mut buf_orders = buf_orders.borrow_mut();
+            let mut orders_written = 0;
+            write!(
+                buf_orders,
+                "I, {}, as your leader, tell you to:\n",
+                &self.full_name()
+            )?;
+
+            for order in orders {
+                write!(buf_orders, "- {}\n", order)?;
+                orders_written += 1;
+            }
+
+            Ok(orders_written)
+        })
+    }
 }
 
 impl TryFrom<&str> for Supervillain<'_> {
@@ -178,8 +207,11 @@ pub enum EvilError {
 
 mod aux {
     use std::{
+        cell::RefCell,
         fs::File,
-        io::{BufRead, BufReader},
+        io::{self, BufRead, BufReader, BufWriter, Write},
+        path::Path,
+        rc::Rc,
     };
 
     pub fn open_buf_read(path: &str) -> Option<impl BufRead> {
@@ -188,13 +220,25 @@ mod aux {
         };
         Some(BufReader::new(file))
     }
+
+    pub fn open_write_execute<P, F>(path: P, operations: F) -> Result<usize, io::Error>
+    where
+        P: AsRef<Path>,
+        F: FnOnce(Rc<RefCell<dyn Write>>) -> Result<usize, std::io::Error>,
+    {
+        let mut buffer = File::create(path)
+            .map(|file| Rc::new(RefCell::new(BufWriter::new(file))) as Rc<RefCell<dyn Write>>)?;
+        operations(buffer)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::cell::{Cell, RefCell};
 
-    use assertables::{assert_matches, assert_none, assert_some, assert_some_eq_x};
+    use assertables::{
+        assert_err, assert_matches, assert_none, assert_ok_eq_x, assert_some, assert_some_eq_x,
+    };
     use mockall::{Sequence, predicate::eq};
     use test_context::{AsyncTestContext, TestContext, test_context};
 
@@ -206,6 +250,7 @@ mod tests {
         static FILE_IF_CAN_OPEN: RefCell<Option<doubles::File>> = RefCell::new(None);
         static FILE_CAN_OPEN: Cell<bool> = Cell::new(false);
         static BUF_CONTENTS: RefCell<String> = RefCell::new(String::new());
+        static BUF_WRITTEN: RefCell<Vec<u8>> = RefCell::new(vec![]);
     }
 
     #[test_context(Context)]
@@ -439,6 +484,34 @@ mod tests {
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations_efficient(), false);
     }
 
+    #[test_context(Context)]
+    #[test]
+    fn spread_orders_by_file_returns_error_on_failure(ctx: &mut Context) {
+        FILE_CAN_OPEN.set(false);
+        assert_err!(ctx.sut.spread_orders_by_file("some/path", vec![]));
+    }
+
+    #[test_context(Context)]
+    #[test]
+    fn spread_orders_by_file_writes_provided_orders(ctx: &mut Context) {
+        FILE_CAN_OPEN.set(true);
+        let orders = vec![
+            "Build headquarters".to_string(),
+            "Fight enemies".to_string(),
+            "Conquer the world".to_string(),
+        ];
+        let expected_message = concat!(
+            "I, Lex Luthor, as your leader, tell you to:\n",
+            "- Build headquarters\n",
+            "- Fight enemies\n",
+            "- Conquer the world\n"
+        );
+
+        assert_ok_eq_x!(ctx.sut.spread_orders_by_file("some/path", orders), 3);
+        let actual_message = BUF_WRITTEN.take();
+        assert_ok_eq_x!(str::from_utf8(&actual_message), expected_message);
+    }
+
     struct Context<'a> {
         sut: Supervillain<'a>,
     }
@@ -459,8 +532,9 @@ mod tests {
 
     pub mod doubles {
         use std::{
-            io::{self, Cursor, Error, ErrorKind},
+            io::{self, Cursor, Error, ErrorKind, Write},
             path::Path,
+            rc::Rc,
         };
 
         use super::*;
@@ -497,6 +571,26 @@ mod tests {
             } else {
                 None
             }
+        }
+
+        pub fn open_write_execute<P, F>(path: P, operations: F) -> Result<usize, io::Error>
+        where
+            P: AsRef<Path>,
+            F: FnOnce(Rc<RefCell<dyn Write>>) -> Result<usize, std::io::Error>,
+        {
+            if !FILE_CAN_OPEN.get() {
+                return Err(io::Error::new(ErrorKind::Other, "Unable to create file"));
+            }
+            let mut buffer = Rc::new(RefCell::new(Cursor::new(vec![])));
+            let mut writer = Rc::clone(&buffer) as Rc<RefCell<dyn Write>>;
+            let result = operations(writer);
+            let output = Rc::into_inner(buffer)
+                .expect("Unexpected empty Rc")
+                .take()
+                .into_inner();
+            BUF_WRITTEN.set(output);
+
+            result
         }
     }
 }
