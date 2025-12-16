@@ -57,6 +57,7 @@ impl Supervillain<'_> {
     /// let lex = Supervillain {
     ///     first_name: "Lex".to_string(),
     ///     last_name: "Luthor".to_string(),
+    ///     ..Default::default()
     /// };
     /// assert_eq!(lex.full_name(), "Lex Luthor");
     /// ```
