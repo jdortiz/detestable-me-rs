@@ -138,7 +138,9 @@ name = "evilmgmt"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "http-body-util",
  "tokio",
+ "tower",
 ]
 
 [[package]]
