@@ -12,21 +12,22 @@ pub struct Sidekick<'a> {
 }
 
 impl<'a> Sidekick<'a> {
-    fn new<G: Gadget + 'a>(gadget: G) -> Sidekick<'a> {
+    fn new<G: Gadget + 'a>(gadget: G) -> Self {
         Sidekick {
             gadget: Box::new(gadget),
         }
     }
 
-    pub fn agree(&self) -> bool {
+    #[must_use]
+    pub const fn agree(&self) -> bool {
         true
     }
 
-    pub fn get_weak_targets<G: Gadget>(&self, _gadget: &G) -> Vec<String> {
+    pub const fn get_weak_targets<G: Gadget>(&self, _gadget: &G) -> Vec<String> {
         vec![]
     }
 
-    pub fn tell(&self, _ciphered_msg: &str) {}
+    pub const fn tell(&self, _ciphered_msg: &str) {}
 }
 
 #[cfg(test)]
@@ -34,7 +35,7 @@ mock! {
     #[derive(Debug)]
     pub Sidekick<'a> {
         pub fn agree(&self) -> bool;
-        pub fn get_weak_targets(&self, _gadget: &'a dyn Gadget) -> Vec<String>;
-        pub fn tell(&self, _ciphered_msg: &str);
+        pub fn get_weak_targets(&self, gadget: &'a dyn Gadget) -> Vec<String>;
+        pub fn tell(&self, ciphered_msg: &str);
     }
 }

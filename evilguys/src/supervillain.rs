@@ -1,16 +1,13 @@
 //! Module for supervillains and their related stuff
 #![allow(unused)]
+#[cfg(not(test))]
+use std::fs::File;
 use std::{
     cell::RefCell,
     io::{self, BufRead, Read, Write},
     path::Path,
     rc::Rc,
     time::Duration,
-};
-#[cfg(not(test))]
-use std::{
-    fs::File,
-    io::{BufReader, BufWriter},
 };
 #[cfg(test)]
 use tests::doubles::File;
@@ -57,19 +54,23 @@ impl Supervillain<'_> {
     /// let lex = Supervillain {
     ///     first_name: "Lex".to_string(),
     ///     last_name: "Luthor".to_string(),
+    ///     ..Default::default()
     /// };
     /// assert_eq!(lex.full_name(), "Lex Luthor");
     /// ```
+    #[must_use]
     pub fn full_name(&self) -> String {
         format!("{} {}", self.first_name, self.last_name)
     }
 
+    /// Sets `first_name` and `last_name` from the name provided.
+    ///
+    /// # Panics
+    /// - If number doesn't have two components (words)
     pub fn set_full_name(&mut self, name: &str) {
-        let components = name.split(" ").collect::<Vec<_>>();
+        let components = name.split(' ').collect::<Vec<_>>();
         println!("Received {} components.", components.len());
-        if components.len() != 2 {
-            panic!("Name must have first and last name");
-        }
+        assert!(components.len() == 2, "Name must have first and last name");
         self.first_name = components[0].to_string();
         self.last_name = components[1].to_string();
     }
@@ -91,10 +92,10 @@ impl Supervillain<'_> {
     }
 
     pub fn conspire(&mut self) {
-        if let Some(ref sidekick) = self.sidekick {
-            if !sidekick.agree() {
-                self.sidekick = None;
-            }
+        if let Some(ref sidekick) = self.sidekick
+            && !sidekick.agree()
+        {
+            self.sidekick = None;
         }
     }
 
@@ -111,7 +112,7 @@ impl Supervillain<'_> {
         }
     }
 
-    pub fn start_world_domination_stage2<H: Henchman>(&self, henchman: H) {
+    pub fn start_world_domination_stage2<H: Henchman>(&self, henchman: &H) {
         henchman.fight_enemies();
         henchman.do_hard_things();
     }
@@ -123,6 +124,7 @@ impl Supervillain<'_> {
         }
     }
 
+    #[must_use]
     pub fn are_there_vulnerable_locations(&self) -> Option<bool> {
         let mut listing = String::new();
         let Ok(mut file_listing) = File::open(LISTING_PATH) else {
@@ -140,12 +142,11 @@ impl Supervillain<'_> {
         Some(false)
     }
 
+    #[must_use]
     pub fn are_there_vulnerable_locations_efficient(&self) -> Option<bool> {
-        let Some(buf_listing) = open_buf_read(LISTING_PATH) else {
-            return None;
-        };
+        let buf_listing = open_buf_read(LISTING_PATH)?;
         let mut list_iter = buf_listing.lines();
-        while let Some(line) = list_iter.next() {
+        for line in list_iter {
             if let Ok(line) = line
                 && line.ends_with("weak")
             {
@@ -155,6 +156,10 @@ impl Supervillain<'_> {
         Some(false)
     }
 
+    /// Writes orders to a file in the given path.
+    ///
+    /// # Errors
+    /// - `io::Error` if file cannot be opened or written.
     pub fn spread_orders_by_file<P: AsRef<Path>>(
         &self,
         path: P,
@@ -163,14 +168,14 @@ impl Supervillain<'_> {
         open_write_execute(path, |mut buf_orders: Rc<RefCell<dyn Write>>| {
             let mut buf_orders = buf_orders.borrow_mut();
             let mut orders_written = 0;
-            write!(
+            writeln!(
                 buf_orders,
-                "I, {}, as your leader, tell you to:\n",
+                "I, {}, as your leader, tell you to:",
                 &self.full_name()
             )?;
 
             for order in orders {
-                write!(buf_orders, "- {}\n", order)?;
+                writeln!(buf_orders, "- {order}")?;
                 orders_written += 1;
             }
 
@@ -183,7 +188,7 @@ impl TryFrom<&str> for Supervillain<'_> {
     type Error = EvilError;
 
     fn try_from(name: &str) -> Result<Self, Self::Error> {
-        let components = name.split(" ").collect::<Vec<_>>();
+        let components = name.split(' ').collect::<Vec<_>>();
         if components.len() < 2 {
             Err(EvilError::ParseError {
                 purpose: "full_name".to_string(),
@@ -247,10 +252,10 @@ mod tests {
     use super::*;
 
     thread_local! {
-        static FILE_IF_CAN_OPEN: RefCell<Option<doubles::File>> = RefCell::new(None);
-        static FILE_CAN_OPEN: Cell<bool> = Cell::new(false);
-        static BUF_CONTENTS: RefCell<String> = RefCell::new(String::new());
-        static BUF_WRITTEN: RefCell<Vec<u8>> = RefCell::new(vec![]);
+        static FILE_IF_CAN_OPEN: RefCell<Option<doubles::File>> = const { RefCell::new(None) };
+        static FILE_CAN_OPEN: Cell<bool> = const { Cell::new(false) };
+        static BUF_CONTENTS: RefCell<String> = const { RefCell::new(String::new()) };
+        static BUF_WRITTEN: RefCell<Vec<u8>> = const { RefCell::new(vec![]) };
     }
 
     #[test_context(Context)]
@@ -395,7 +400,7 @@ mod tests {
             .in_sequence(&mut sequence)
             .return_const(());
 
-        ctx.sut.start_world_domination_stage2(mock_henchman);
+        ctx.sut.start_world_domination_stage2(&mock_henchman);
     }
 
     #[test_context(Context)]
@@ -435,9 +440,9 @@ mod tests {
     #[test]
     fn vulnerable_locations_with_weak_returns_true(ctx: &mut Context) {
         FILE_IF_CAN_OPEN.replace(Some(doubles::File::new(Some(String::from(
-            r#"Madrid,strong
-               Las Vegas,weak
-               New York,strong"#,
+            r"Madrid,strong
+              Las Vegas,weak
+              New York,strong",
         )))));
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), true);
     }
@@ -446,9 +451,9 @@ mod tests {
     #[test]
     fn vulnerable_locations_without_weak_returns_false(ctx: &mut Context) {
         FILE_IF_CAN_OPEN.replace(Some(doubles::File::new(Some(String::from(
-            r#"Madrid,strong
-               Oregon,strong
-               New York,strong"#,
+            r"Madrid,strong
+              Oregon,strong
+              New York,strong",
         )))));
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations(), false);
     }
@@ -465,9 +470,9 @@ mod tests {
     fn efficient_vulnerable_locations_with_weak_returns_true(ctx: &mut Context) {
         FILE_CAN_OPEN.set(true);
         BUF_CONTENTS.replace(String::from(
-            r#"Madrid,strong
-             Las Vegas,weak
-             New York,strong"#,
+            r"Madrid,strong
+              Las Vegas,weak
+              New York,strong",
         ));
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations_efficient(), true);
     }
@@ -477,9 +482,9 @@ mod tests {
     fn efficient_vulnerable_locations_without_weak_returns_false(ctx: &mut Context) {
         FILE_CAN_OPEN.set(true);
         BUF_CONTENTS.replace(String::from(
-            r#"Madrid,strong
-             Oregon,strong
-             New York,strong"#,
+            r"Madrid,strong
+              Oregon,strong
+              New York,strong",
         ));
         assert_some_eq_x!(ctx.sut.are_there_vulnerable_locations_efficient(), false);
     }
@@ -531,11 +536,7 @@ mod tests {
     }
 
     pub mod doubles {
-        use std::{
-            io::{self, Cursor, Error, ErrorKind, Write},
-            path::Path,
-            rc::Rc,
-        };
+        use std::io::{self, Cursor, Error, ErrorKind};
 
         use super::*;
 
@@ -579,7 +580,7 @@ mod tests {
             F: FnOnce(Rc<RefCell<dyn Write>>) -> Result<usize, std::io::Error>,
         {
             if !FILE_CAN_OPEN.get() {
-                return Err(io::Error::new(ErrorKind::Other, "Unable to create file"));
+                return Err(io::Error::other("Unable to create file"));
             }
             let mut buffer = Rc::new(RefCell::new(Cursor::new(vec![])));
             let mut writer = Rc::clone(&buffer) as Rc<RefCell<dyn Write>>;
